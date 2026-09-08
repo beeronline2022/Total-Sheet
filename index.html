@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ค้นหาข้อมูล</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <main class="page">
+    <header class="hero">
+      <p class="hero__eyebrow">ระบบค้นหาข้อมูล</p>
+      <h1 class="hero__title">หาสิ่งที่ต้องการ<br>จากฐานข้อมูลได้ในไม่กี่วินาที</h1>
+
+      <form class="search" id="searchForm" autocomplete="off">
+        <input
+          type="text"
+          id="searchInput"
+          class="search__input"
+          placeholder="พิมพ์ชื่อ, รหัส หรือคำที่เกี่ยวข้อง..."
+          aria-label="คำค้นหา"
+        >
+        <button type="submit" class="search__button" id="searchButton">ค้นหา</button>
+      </form>
+    </header>
+
+    <div class="tabs" id="tabsBar" hidden></div>
+
+    <section class="results" id="resultsSection" aria-live="polite">
+      <p class="results__hint" id="resultsHint">พิมพ์คำค้นหาแล้วกด Enter เพื่อเริ่มค้นหา</p>
+      <p class="results__count" id="resultsCount" hidden></p>
+      <div class="results__grid" id="resultsGrid"></div>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
