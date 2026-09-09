@@ -8,10 +8,41 @@ const tabsBar = document.getElementById('tabsBar');
 
 let lastKeyword = '';
 let selectedTab = ''; // '' = ค้นทุกแท็บ
+let jsonpCounter = 0;
 
 document.addEventListener('DOMContentLoaded', () => {
   loadTabs();
 });
+
+/**
+ * เรียก Apps Script ผ่านเทคนิค JSONP แทน fetch()
+ * เพราะ Apps Script Web App ไม่ส่งค่า CORS header กลับมา ทำให้ fetch() อ่านผลลัพธ์ไม่ได้
+ * แต่การโหลดผ่านแท็ก <script> ไม่ติดข้อจำกัด CORS จึงใช้วิธีนี้แทน
+ */
+function jsonpRequest(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `jsonpCallback_${Date.now()}_${jsonpCounter++}`;
+    const script = document.createElement('script');
+
+    const cleanup = () => {
+      delete window[callbackName];
+      script.remove();
+    };
+
+    window[callbackName] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('เชื่อมต่อ API ไม่สำเร็จ'));
+    };
+
+    script.src = `${url}&callback=${callbackName}`;
+    document.body.appendChild(script);
+  });
+}
 
 async function loadTabs() {
   if (!API_URL || API_URL.includes('วาง_URL')) {
@@ -20,11 +51,9 @@ async function loadTabs() {
   }
 
   try {
-    const response = await fetch(`${API_URL}?action=sheets&key=${encodeURIComponent(ACCESS_KEY)}`);
-    const result = await response.json();
+    const result = await jsonpRequest(`${API_URL}?action=sheets&key=${encodeURIComponent(ACCESS_KEY)}`);
 
     if (!result.ok) {
-      // เช่น ยังไม่ได้ตั้ง DASHBOARD_ALLOWED_EMAILS หรือบัญชีไม่มีสิทธิ์
       showHint(result.error || 'ไม่สามารถเข้าถึงข้อมูลได้', true);
       return;
     }
@@ -87,10 +116,7 @@ async function runSearch(keyword) {
     if (selectedTab) parts.push(`sheet=${encodeURIComponent(selectedTab)}`);
     const url = `${API_URL}?${parts.join('&')}`;
 
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('เชื่อมต่อ API ไม่สำเร็จ (' + response.status + ')');
-
-    const result = await response.json();
+    const result = await jsonpRequest(url);
     if (!result.ok) throw new Error(result.error || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ');
 
     renderResults(result.results);
