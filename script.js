@@ -20,7 +20,7 @@ async function loadTabs() {
   }
 
   try {
-    const response = await fetch(`${API_URL}?action=sheets`);
+    const response = await fetch(`${API_URL}?action=sheets&key=${encodeURIComponent(ACCESS_KEY)}`);
     const result = await response.json();
 
     if (!result.ok) {
@@ -83,7 +83,7 @@ async function runSearch(keyword) {
   setLoading(true);
 
   try {
-    const parts = ['action=search', `q=${encodeURIComponent(keyword)}`];
+    const parts = ['action=search', `q=${encodeURIComponent(keyword)}`, `key=${encodeURIComponent(ACCESS_KEY)}`];
     if (selectedTab) parts.push(`sheet=${encodeURIComponent(selectedTab)}`);
     const url = `${API_URL}?${parts.join('&')}`;
 
