@@ -5,10 +5,18 @@ const hint = document.getElementById('resultsHint');
 const countLabel = document.getElementById('resultsCount');
 const grid = document.getElementById('resultsGrid');
 const tabsBar = document.getElementById('tabsBar');
+const addToggle = document.getElementById('addToggle');
+const addPanel = document.getElementById('addPanel');
+const addSheetSelect = document.getElementById('addSheetSelect');
+const addFields = document.getElementById('addFields');
+const addSubmitButton = document.getElementById('addSubmitButton');
+const addStatus = document.getElementById('addStatus');
+const resultsSection = document.getElementById('resultsSection');
 
 let lastKeyword = '';
 let selectedTab = ''; // '' = ค้นทุกแท็บ
 let jsonpCounter = 0;
+let allTabNames = [];
 
 document.addEventListener('DOMContentLoaded', () => {
   loadTabs();
@@ -66,6 +74,7 @@ async function loadTabs() {
 }
 
 function renderTabs(tabNames) {
+  allTabNames = tabNames;
   tabsBar.innerHTML = '';
   tabsBar.hidden = false;
 
@@ -73,6 +82,7 @@ function renderTabs(tabNames) {
   tabNames.forEach(name => tabsBar.appendChild(createTabPill(name, name)));
 
   updateTabPillStates();
+  populateAddSheetSelect(tabNames);
 }
 
 function createTabPill(label, value) {
@@ -194,4 +204,107 @@ function escapeHtml(value) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/* ===== แถบเพิ่มข้อมูล ===== */
+
+addToggle.addEventListener('click', () => {
+  const isOpen = !addPanel.hidden;
+  addPanel.hidden = isOpen;
+  resultsSection.hidden = !isOpen;
+  addToggle.setAttribute('aria-pressed', String(!isOpen));
+  addToggle.textContent = isOpen ? '+ เพิ่มข้อมูล' : '× ปิดฟอร์ม';
+});
+
+function populateAddSheetSelect(tabNames) {
+  addSheetSelect.innerHTML = '<option value="">-- เลือกแท็บ --</option>';
+  tabNames.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    addSheetSelect.appendChild(option);
+  });
+}
+
+addSheetSelect.addEventListener('change', async () => {
+  const sheetName = addSheetSelect.value;
+  addFields.innerHTML = '';
+  addSubmitButton.disabled = true;
+  setAddStatus('', null);
+
+  if (!sheetName) return;
+
+  setAddStatus('กำลังโหลดคอลัมน์...', null);
+  try {
+    const url = `${API_URL}?action=headers&sheet=${encodeURIComponent(sheetName)}&key=${encodeURIComponent(ACCESS_KEY)}`;
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'โหลดคอลัมน์ไม่สำเร็จ');
+
+    renderAddFields(result.headers);
+    addSubmitButton.disabled = false;
+    setAddStatus('', null);
+  } catch (err) {
+    setAddStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+});
+
+function renderAddFields(headers) {
+  addFields.innerHTML = '';
+  headers.forEach(header => {
+    const wrap = document.createElement('div');
+    wrap.className = 'add-field';
+
+    const label = document.createElement('label');
+    label.textContent = header;
+    label.setAttribute('for', `field-${header}`);
+
+    const inputEl = document.createElement('input');
+    inputEl.type = 'text';
+    inputEl.id = `field-${header}`;
+    inputEl.dataset.header = header;
+
+    wrap.append(label, inputEl);
+    addFields.appendChild(wrap);
+  });
+}
+
+addSubmitButton.addEventListener('click', async () => {
+  const sheetName = addSheetSelect.value;
+  if (!sheetName) return;
+
+  const data = {};
+  addFields.querySelectorAll('input').forEach(inputEl => {
+    data[inputEl.dataset.header] = inputEl.value;
+  });
+
+  addSubmitButton.disabled = true;
+  setAddStatus('กำลังบันทึก...', null);
+
+  try {
+    const parts = [
+      'action=add',
+      `sheet=${encodeURIComponent(sheetName)}`,
+      `data=${encodeURIComponent(JSON.stringify(data))}`,
+      `key=${encodeURIComponent(ACCESS_KEY)}`
+    ];
+    const result = await jsonpRequest(`${API_URL}?${parts.join('&')}`);
+    if (!result.ok) throw new Error(result.error || 'บันทึกไม่สำเร็จ');
+
+    setAddStatus('บันทึกข้อมูลสำเร็จ', 'success');
+    addFields.querySelectorAll('input').forEach(inputEl => { inputEl.value = ''; });
+
+    // รีเฟรชผลค้นหาที่แสดงอยู่ ให้เห็นข้อมูลใหม่ทันที (เผื่อผู้ใช้สลับกลับไปดู)
+    if (selectedTab === sheetName || !selectedTab) {
+      runSearch(lastKeyword);
+    }
+  } catch (err) {
+    setAddStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  } finally {
+    addSubmitButton.disabled = false;
+  }
+});
+
+function setAddStatus(message, type) {
+  addStatus.textContent = message;
+  addStatus.className = 'add-panel__status' + (type ? ` add-panel__status--${type}` : '');
 }

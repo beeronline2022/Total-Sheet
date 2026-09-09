@@ -24,10 +24,23 @@
           aria-label="คำค้นหา"
         >
         <button type="submit" class="search__button" id="searchButton">ค้นหา</button>
+        <button type="button" class="mode-toggle" id="addToggle">+ เพิ่มข้อมูล</button>
       </form>
     </header>
 
     <div class="tabs" id="tabsBar" hidden></div>
+
+    <section class="add-panel" id="addPanel" hidden>
+      <p class="add-panel__label">เลือกแท็บที่จะเพิ่มข้อมูล</p>
+      <select class="add-panel__select" id="addSheetSelect">
+        <option value="">-- เลือกแท็บ --</option>
+      </select>
+      <div class="add-panel__fields" id="addFields"></div>
+      <div class="add-panel__actions">
+        <button type="button" class="search__button" id="addSubmitButton" disabled>บันทึกข้อมูล</button>
+        <p class="add-panel__status" id="addStatus"></p>
+      </div>
+    </section>
 
     <section class="results" id="resultsSection" aria-live="polite">
       <p class="results__hint" id="resultsHint">พิมพ์คำค้นหาแล้วกด Enter เพื่อเริ่มค้นหา</p>
