@@ -14,9 +14,10 @@ const addStatus = document.getElementById('addStatus');
 const resultsSection = document.getElementById('resultsSection');
 
 let lastKeyword = '';
-let selectedTab = ''; // '' = ค้นทุกแท็บ
+let selectedBook = '';   // '' = ทุกไฟล์
+let selectedSheet = '';  // '' = ทุกแท็บ
 let jsonpCounter = 0;
-let allTabNames = [];
+let showBookLabel = false; // แสดงชื่อไฟล์กำกับด้วยไหม (จริงเมื่อมีมากกว่า 1 ไฟล์)
 
 document.addEventListener('DOMContentLoaded', () => {
   loadTabs();
@@ -66,34 +67,41 @@ async function loadTabs() {
       return;
     }
 
-    renderTabs(result.sheets.map(s => s.name));
-    runSearch(''); // แสดงข้อมูลทั้งหมด (ทุกแท็บ) ทันทีตั้งแต่เปิดหน้าเว็บ
+    renderTabs(result.sheets); // [{ book, name, rowCount }, ...]
+    runSearch(''); // แสดงข้อมูลทั้งหมด (ทุกไฟล์ ทุกแท็บ) ทันทีตั้งแต่เปิดหน้าเว็บ
   } catch (err) {
     showHint('เชื่อมต่อ API ไม่สำเร็จ: ' + err.message, true);
   }
 }
 
-function renderTabs(tabNames) {
-  allTabNames = tabNames;
+function renderTabs(sheets) {
+  const uniqueBooks = new Set(sheets.map(s => s.book));
+  showBookLabel = uniqueBooks.size > 1; // ถ้ามีมากกว่า 1 ไฟล์ ให้โชว์ชื่อไฟล์กำกับด้วย
+
   tabsBar.innerHTML = '';
   tabsBar.hidden = false;
 
-  tabsBar.appendChild(createTabPill('ทั้งหมด', ''));
-  tabNames.forEach(name => tabsBar.appendChild(createTabPill(name, name)));
+  tabsBar.appendChild(createTabPill('ทั้งหมด', '', ''));
+  sheets.forEach(s => {
+    const label = showBookLabel ? `${s.name} · ${s.book}` : s.name;
+    tabsBar.appendChild(createTabPill(label, s.book, s.name));
+  });
 
   updateTabPillStates();
-  populateAddSheetSelect(tabNames);
+  populateAddSheetSelect(sheets);
 }
 
-function createTabPill(label, value) {
+function createTabPill(label, book, sheetName) {
   const pill = document.createElement('button');
   pill.type = 'button';
   pill.className = 'tab-pill';
   pill.textContent = label;
-  pill.dataset.value = value;
+  pill.dataset.book = book;
+  pill.dataset.sheet = sheetName;
   pill.setAttribute('aria-pressed', 'false');
   pill.addEventListener('click', () => {
-    selectedTab = value;
+    selectedBook = book;
+    selectedSheet = sheetName;
     updateTabPillStates();
     runSearch(input.value.trim());
   });
@@ -102,7 +110,7 @@ function createTabPill(label, value) {
 
 function updateTabPillStates() {
   Array.from(tabsBar.children).forEach(pill => {
-    const isActive = pill.dataset.value === selectedTab;
+    const isActive = pill.dataset.book === selectedBook && pill.dataset.sheet === selectedSheet;
     pill.setAttribute('aria-pressed', String(isActive));
   });
 }
@@ -123,7 +131,10 @@ async function runSearch(keyword) {
 
   try {
     const parts = ['action=search', `q=${encodeURIComponent(keyword)}`, `key=${encodeURIComponent(ACCESS_KEY)}`];
-    if (selectedTab) parts.push(`sheet=${encodeURIComponent(selectedTab)}`);
+    if (selectedSheet) {
+      parts.push(`sheet=${encodeURIComponent(selectedSheet)}`);
+      if (selectedBook) parts.push(`book=${encodeURIComponent(selectedBook)}`);
+    }
     const url = `${API_URL}?${parts.join('&')}`;
 
     const result = await jsonpRequest(url);
@@ -159,7 +170,8 @@ function buildRawCard(row) {
 
   const meta = document.createElement('div');
   meta.className = 'result-card__meta';
-  meta.textContent = `${row.sheet} · แถวที่ ${row.row}`;
+  const prefix = showBookLabel && row.book ? `${row.book} · ` : '';
+  meta.textContent = `${prefix}${row.sheet} · แถวที่ ${row.row}`;
   card.appendChild(meta);
 
   const cellsWrap = document.createElement('div');
@@ -216,18 +228,21 @@ addToggle.addEventListener('click', () => {
   addToggle.textContent = isOpen ? '+ เพิ่มข้อมูล' : '× ปิดฟอร์ม';
 });
 
-function populateAddSheetSelect(tabNames) {
+// ใช้ตัวคั่นนี้เข้ารหัส book+sheet ไว้ใน value เดียวของ <option> (ตัวคั่นนี้ไม่ควรไปพ้องกับชื่อไฟล์/แท็บจริง)
+const OPTION_SEP = '\u0001';
+
+function populateAddSheetSelect(sheets) {
   addSheetSelect.innerHTML = '<option value="">-- เลือกแท็บ --</option>';
-  tabNames.forEach(name => {
+  sheets.forEach(s => {
     const option = document.createElement('option');
-    option.value = name;
-    option.textContent = name;
+    option.value = `${s.book}${OPTION_SEP}${s.name}`;
+    option.textContent = showBookLabel ? `${s.name} (${s.book})` : s.name;
     addSheetSelect.appendChild(option);
   });
 }
 
 addSheetSelect.addEventListener('change', async () => {
-  const sheetName = addSheetSelect.value;
+  const [book, sheetName] = addSheetSelect.value.split(OPTION_SEP);
   addFields.innerHTML = '';
   addSubmitButton.disabled = true;
   setAddStatus('', null);
@@ -236,7 +251,7 @@ addSheetSelect.addEventListener('change', async () => {
 
   setAddStatus('กำลังโหลดคอลัมน์...', null);
   try {
-    const url = `${API_URL}?action=headers&sheet=${encodeURIComponent(sheetName)}&key=${encodeURIComponent(ACCESS_KEY)}`;
+    const url = `${API_URL}?action=headers&book=${encodeURIComponent(book)}&sheet=${encodeURIComponent(sheetName)}&key=${encodeURIComponent(ACCESS_KEY)}`;
     const result = await jsonpRequest(url);
     if (!result.ok) throw new Error(result.error || 'โหลดคอลัมน์ไม่สำเร็จ');
 
@@ -269,7 +284,7 @@ function renderAddFields(headers) {
 }
 
 addSubmitButton.addEventListener('click', async () => {
-  const sheetName = addSheetSelect.value;
+  const [book, sheetName] = addSheetSelect.value.split(OPTION_SEP);
   if (!sheetName) return;
 
   const data = {};
@@ -283,6 +298,7 @@ addSubmitButton.addEventListener('click', async () => {
   try {
     const parts = [
       'action=add',
+      `book=${encodeURIComponent(book)}`,
       `sheet=${encodeURIComponent(sheetName)}`,
       `data=${encodeURIComponent(JSON.stringify(data))}`,
       `key=${encodeURIComponent(ACCESS_KEY)}`
@@ -294,7 +310,7 @@ addSubmitButton.addEventListener('click', async () => {
     addFields.querySelectorAll('input').forEach(inputEl => { inputEl.value = ''; });
 
     // รีเฟรชผลค้นหาที่แสดงอยู่ ให้เห็นข้อมูลใหม่ทันที (เผื่อผู้ใช้สลับกลับไปดู)
-    if (selectedTab === sheetName || !selectedTab) {
+    if ((selectedBook === book && selectedSheet === sheetName) || !selectedSheet) {
       runSearch(lastKeyword);
     }
   } catch (err) {
