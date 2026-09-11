@@ -1,6 +1,6 @@
-// วาง Web app URL ที่ deploy จาก Apps Script ของไฟล์ CS : TOSM 2026 ไว้ตรงนี้
+// วาง Web app URL ที่ deploy จาก Apps Script ไว้ตรงนี้
 // ตัวอย่าง: https://script.google.com/macros/s/AKfycb.../exec
-const API_URL = 'https://script.google.com/macros/s/AKfycbwJwIBv9d-X0n5ua8Gkzz8S7AmxYlu2Y1lwFEF1Fb7gAZoNQ0_cK6TJtLYHowY_IwnX';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwJwIBv9d-X0n5ua8Gkzz8S7AmxYlu2Y1lwFEF1Fb7gAZoNQ0_cK6TJtLYHowY_IwnX/exec';
 
 // รหัสเข้าถึง ต้องตรงกับค่าที่ตั้งไว้ใน Script Properties ชื่อ DASHBOARD_ACCESS_KEY
 const ACCESS_KEY = 'a07pxG9js452JLCQAc3F';
