@@ -1,26 +1,39 @@
+const heroTitle = document.getElementById('heroTitle');
+const booksSection = document.getElementById('booksSection');
+const booksGrid = document.getElementById('booksGrid');
+const booksHint = document.getElementById('booksHint');
+const workspace = document.getElementById('workspace');
+const backButton = document.getElementById('backButton');
+const tabsBar = document.getElementById('tabsBar');
+
 const form = document.getElementById('searchForm');
 const input = document.getElementById('searchInput');
 const button = document.getElementById('searchButton');
 const hint = document.getElementById('resultsHint');
 const countLabel = document.getElementById('resultsCount');
 const grid = document.getElementById('resultsGrid');
-const tabsBar = document.getElementById('tabsBar');
+
 const addToggle = document.getElementById('addToggle');
 const addPanel = document.getElementById('addPanel');
-const addSheetSelect = document.getElementById('addSheetSelect');
+const addPanelSheetName = document.getElementById('addPanelSheetName');
 const addFields = document.getElementById('addFields');
 const addSubmitButton = document.getElementById('addSubmitButton');
 const addStatus = document.getElementById('addStatus');
+
+const manageToggle = document.getElementById('manageToggle');
+const managePanel = document.getElementById('managePanel');
+const manageChips = document.getElementById('manageChips');
+const manageStatus = document.getElementById('manageStatus');
+
 const resultsSection = document.getElementById('resultsSection');
 
+let currentBook = '';
+let selectedSheet = ''; // '' = ทุกแท็บในไฟล์นี้
 let lastKeyword = '';
-let selectedBook = '';   // '' = ทุกไฟล์
-let selectedSheet = '';  // '' = ทุกแท็บ
 let jsonpCounter = 0;
-let showBookLabel = false; // แสดงชื่อไฟล์กำกับด้วยไหม (จริงเมื่อมีมากกว่า 1 ไฟล์)
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadTabs();
+  loadBooks();
 });
 
 /**
@@ -53,56 +66,111 @@ function jsonpRequest(url) {
   });
 }
 
-async function loadTabs() {
+function apiUrl(params) {
+  const parts = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`);
+  parts.push(`key=${encodeURIComponent(ACCESS_KEY)}`);
+  return `${API_URL}?${parts.join('&')}`;
+}
+
+/* ===== ขั้นที่ 1: เลือกไฟล์ (โหลดเร็ว ไม่แตะเนื้อหาในชีตเลย) ===== */
+
+async function loadBooks() {
   if (!API_URL || API_URL.includes('วาง_URL')) {
-    showHint('ยังไม่ได้ตั้งค่า API_URL ใน config.js', true);
+    booksHint.textContent = 'ยังไม่ได้ตั้งค่า API_URL ใน config.js';
     return;
   }
 
+  booksHint.textContent = 'กำลังโหลดรายชื่อไฟล์...';
   try {
-    const result = await jsonpRequest(`${API_URL}?action=sheets&key=${encodeURIComponent(ACCESS_KEY)}`);
+    const result = await jsonpRequest(apiUrl({ action: 'books' }));
+    if (!result.ok) throw new Error(result.error || 'โหลดรายชื่อไฟล์ไม่สำเร็จ');
 
-    if (!result.ok) {
-      showHint(result.error || 'ไม่สามารถเข้าถึงข้อมูลได้', true);
-      return;
-    }
-
-    renderTabs(result.sheets); // [{ book, name, rowCount }, ...]
-    runSearch(''); // แสดงข้อมูลทั้งหมด (ทุกไฟล์ ทุกแท็บ) ทันทีตั้งแต่เปิดหน้าเว็บ
+    booksHint.textContent = '';
+    renderBooks(result.books);
   } catch (err) {
-    showHint('เชื่อมต่อ API ไม่สำเร็จ: ' + err.message, true);
+    booksHint.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
   }
 }
 
-function renderTabs(sheets) {
-  const uniqueBooks = new Set(sheets.map(s => s.book));
-  showBookLabel = uniqueBooks.size > 1; // ถ้ามีมากกว่า 1 ไฟล์ ให้โชว์ชื่อไฟล์กำกับด้วย
-
-  tabsBar.innerHTML = '';
-  tabsBar.hidden = false;
-
-  tabsBar.appendChild(createTabPill('ทั้งหมด', '', ''));
-  sheets.forEach(s => {
-    const label = showBookLabel ? `${s.name} · ${s.book}` : s.name;
-    tabsBar.appendChild(createTabPill(label, s.book, s.name));
+function renderBooks(books) {
+  booksGrid.innerHTML = '';
+  books.forEach(book => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'book-card';
+    card.innerHTML = `<span class="book-card__name">${escapeHtml(book)}</span><span class="book-card__arrow">→</span>`;
+    card.addEventListener('click', () => openBook(book));
+    booksGrid.appendChild(card);
   });
-
-  updateTabPillStates();
-  populateAddSheetSelect(sheets);
 }
 
-function createTabPill(label, book, sheetName) {
+async function openBook(book) {
+  currentBook = book;
+  selectedSheet = '';
+  lastKeyword = '';
+  input.value = '';
+
+  booksSection.hidden = true;
+  workspace.hidden = false;
+  heroTitle.innerHTML = escapeHtml(book);
+
+  addPanel.hidden = true;
+  managePanel.hidden = true;
+  addToggle.setAttribute('aria-pressed', 'false');
+  addToggle.textContent = '+ เพิ่มข้อมูล';
+  manageToggle.hidden = true;
+  manageToggle.setAttribute('aria-pressed', 'false');
+  manageToggle.textContent = 'จัดการคอลัมน์';
+
+  showHint('กำลังโหลดรายชื่อแท็บ...', false);
+  tabsBar.innerHTML = '';
+
+  try {
+    const result = await jsonpRequest(apiUrl({ action: 'sheets', book }));
+    if (!result.ok) throw new Error(result.error || 'โหลดแท็บไม่สำเร็จ');
+
+    renderTabs(result.sheets);
+    showHint('เลือกแท็บด้านบน หรือพิมพ์คำค้นหาแล้วกด Enter', false);
+  } catch (err) {
+    showHint('เกิดข้อผิดพลาด: ' + err.message, true);
+  }
+}
+
+backButton.addEventListener('click', () => {
+  currentBook = '';
+  selectedSheet = '';
+  workspace.hidden = true;
+  booksSection.hidden = false;
+  heroTitle.innerHTML = 'เลือกไฟล์ที่ต้องการ<br>เพื่อเริ่มค้นหา';
+});
+
+/* ===== ขั้นที่ 2: เลือกแท็บ ===== */
+
+function renderTabs(sheets) {
+  tabsBar.innerHTML = '';
+  tabsBar.appendChild(createTabPill('ทั้งหมดในไฟล์นี้', ''));
+  sheets.forEach(s => tabsBar.appendChild(createTabPill(s.name, s.name)));
+  updateTabPillStates();
+  populateAddFieldsPlaceholder();
+}
+
+function createTabPill(label, sheetName) {
   const pill = document.createElement('button');
   pill.type = 'button';
   pill.className = 'tab-pill';
   pill.textContent = label;
-  pill.dataset.book = book;
   pill.dataset.sheet = sheetName;
   pill.setAttribute('aria-pressed', 'false');
   pill.addEventListener('click', () => {
-    selectedBook = book;
     selectedSheet = sheetName;
     updateTabPillStates();
+    manageToggle.hidden = !selectedSheet; // จัดการคอลัมน์ได้เฉพาะตอนเลือกแท็บเดียว
+    managePanel.hidden = true;
+    manageToggle.setAttribute('aria-pressed', 'false');
+    manageToggle.textContent = 'จัดการคอลัมน์';
+    if (addToggle.getAttribute('aria-pressed') === 'true') loadAddFields();
     runSearch(input.value.trim());
   });
   return pill;
@@ -110,10 +178,11 @@ function createTabPill(label, book, sheetName) {
 
 function updateTabPillStates() {
   Array.from(tabsBar.children).forEach(pill => {
-    const isActive = pill.dataset.book === selectedBook && pill.dataset.sheet === selectedSheet;
-    pill.setAttribute('aria-pressed', String(isActive));
+    pill.setAttribute('aria-pressed', String(pill.dataset.sheet === selectedSheet));
   });
 }
+
+/* ===== ขั้นที่ 3: ค้นหา / แสดงผล ===== */
 
 form.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -121,22 +190,13 @@ form.addEventListener('submit', (e) => {
 });
 
 async function runSearch(keyword) {
-  if (!API_URL || API_URL.includes('วาง_URL')) {
-    showHint('ยังไม่ได้ตั้งค่า API_URL ใน config.js', true);
-    return;
-  }
+  if (!currentBook) return;
 
   lastKeyword = keyword;
   setLoading(true);
 
   try {
-    const parts = ['action=search', `q=${encodeURIComponent(keyword)}`, `key=${encodeURIComponent(ACCESS_KEY)}`];
-    if (selectedSheet) {
-      parts.push(`sheet=${encodeURIComponent(selectedSheet)}`);
-      if (selectedBook) parts.push(`book=${encodeURIComponent(selectedBook)}`);
-    }
-    const url = `${API_URL}?${parts.join('&')}`;
-
+    const url = apiUrl({ action: 'search', q: keyword, book: currentBook, sheet: selectedSheet || undefined });
     const result = await jsonpRequest(url);
     if (!result.ok) throw new Error(result.error || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ');
 
@@ -168,11 +228,13 @@ function buildRawCard(row) {
   const card = document.createElement('div');
   card.className = 'result-card';
 
+  const body = document.createElement('div');
+  body.className = 'result-card__body';
+
   const meta = document.createElement('div');
   meta.className = 'result-card__meta';
-  const prefix = showBookLabel && row.book ? `${row.book} · ` : '';
-  meta.textContent = `${prefix}${row.sheet} · แถวที่ ${row.row}`;
-  card.appendChild(meta);
+  meta.textContent = `${row.sheet} · แถวที่ ${row.row}`;
+  body.appendChild(meta);
 
   const cellsWrap = document.createElement('div');
   cellsWrap.className = 'result-card__cells';
@@ -184,9 +246,41 @@ function buildRawCard(row) {
       cellEl.innerHTML = highlightMatch(cell, lastKeyword);
       cellsWrap.appendChild(cellEl);
     });
-  card.appendChild(cellsWrap);
+  body.appendChild(cellsWrap);
+  card.appendChild(body);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.className = 'result-card__delete';
+  deleteBtn.textContent = '🗑';
+  deleteBtn.title = 'ลบแถวนี้ออกจากชีตจริง';
+  deleteBtn.addEventListener('click', () => deleteRow(row, card, deleteBtn));
+  card.appendChild(deleteBtn);
 
   return card;
+}
+
+async function deleteRow(row, cardEl, buttonEl) {
+  const confirmed = confirm(`ยืนยันลบข้อมูลแถวที่ ${row.row} ในแท็บ "${row.sheet}" ออกจากชีตจริง?\n\nการลบนี้ย้อนกลับไม่ได้`);
+  if (!confirmed) return;
+
+  buttonEl.disabled = true;
+  try {
+    const url = apiUrl({ action: 'deleteRow', book: currentBook, sheet: row.sheet, row: row.row });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'ลบไม่สำเร็จ');
+
+    cardEl.remove();
+    if (!grid.children.length) {
+      countLabel.hidden = true;
+      showHint('ไม่พบข้อมูลที่ตรงกับคำค้นหา', false);
+    } else {
+      countLabel.textContent = `พบ ${grid.children.length} รายการ`;
+    }
+  } catch (err) {
+    alert('เกิดข้อผิดพลาด: ' + err.message);
+    buttonEl.disabled = false;
+  }
 }
 
 function highlightMatch(text, keyword) {
@@ -220,38 +314,38 @@ function escapeHtml(value) {
 
 /* ===== แถบเพิ่มข้อมูล ===== */
 
+function populateAddFieldsPlaceholder() {
+  addFields.innerHTML = '';
+  setAddStatus('', null);
+}
+
 addToggle.addEventListener('click', () => {
   const isOpen = !addPanel.hidden;
   addPanel.hidden = isOpen;
-  resultsSection.hidden = !isOpen;
+  managePanel.hidden = true;
+  manageToggle.setAttribute('aria-pressed', 'false');
+  manageToggle.textContent = 'จัดการคอลัมน์';
   addToggle.setAttribute('aria-pressed', String(!isOpen));
   addToggle.textContent = isOpen ? '+ เพิ่มข้อมูล' : '× ปิดฟอร์ม';
+
+  if (!isOpen) loadAddFields();
 });
 
-// ใช้ตัวคั่นนี้เข้ารหัส book+sheet ไว้ใน value เดียวของ <option> (ตัวคั่นนี้ไม่ควรไปพ้องกับชื่อไฟล์/แท็บจริง)
-const OPTION_SEP = '\u0001';
+async function loadAddFields() {
+  if (!selectedSheet) {
+    addPanelSheetName.textContent = '(กรุณาเลือกแท็บใดแท็บหนึ่งด้านบนก่อน)';
+    addFields.innerHTML = '';
+    addSubmitButton.disabled = true;
+    return;
+  }
 
-function populateAddSheetSelect(sheets) {
-  addSheetSelect.innerHTML = '<option value="">-- เลือกแท็บ --</option>';
-  sheets.forEach(s => {
-    const option = document.createElement('option');
-    option.value = `${s.book}${OPTION_SEP}${s.name}`;
-    option.textContent = showBookLabel ? `${s.name} (${s.book})` : s.name;
-    addSheetSelect.appendChild(option);
-  });
-}
-
-addSheetSelect.addEventListener('change', async () => {
-  const [book, sheetName] = addSheetSelect.value.split(OPTION_SEP);
+  addPanelSheetName.textContent = selectedSheet;
   addFields.innerHTML = '';
   addSubmitButton.disabled = true;
-  setAddStatus('', null);
-
-  if (!sheetName) return;
-
   setAddStatus('กำลังโหลดคอลัมน์...', null);
+
   try {
-    const url = `${API_URL}?action=headers&book=${encodeURIComponent(book)}&sheet=${encodeURIComponent(sheetName)}&key=${encodeURIComponent(ACCESS_KEY)}`;
+    const url = apiUrl({ action: 'headers', book: currentBook, sheet: selectedSheet });
     const result = await jsonpRequest(url);
     if (!result.ok) throw new Error(result.error || 'โหลดคอลัมน์ไม่สำเร็จ');
 
@@ -261,7 +355,7 @@ addSheetSelect.addEventListener('change', async () => {
   } catch (err) {
     setAddStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
   }
-});
+}
 
 function renderAddFields(headers) {
   addFields.innerHTML = '';
@@ -270,49 +364,75 @@ function renderAddFields(headers) {
     wrap.className = 'add-field';
 
     const label = document.createElement('label');
-    label.textContent = header;
-    label.setAttribute('for', `field-${header}`);
+    label.textContent = header.name;
+    label.setAttribute('for', `field-${header.name}`);
+    wrap.appendChild(label);
 
-    const inputEl = document.createElement('input');
-    inputEl.type = 'text';
-    inputEl.id = `field-${header}`;
-    inputEl.dataset.header = header;
-
-    wrap.append(label, inputEl);
+    wrap.appendChild(buildFieldInput(header));
     addFields.appendChild(wrap);
   });
 }
 
+/**
+ * สร้างช่องกรอกให้เหมาะกับแต่ละคอลัมน์:
+ * - ถ้าชื่อคอลัมน์มีคำว่า "วันที่" หรือ "date" → ใช้ปฏิทินเลือกวันที่
+ * - ถ้าคอลัมน์มี options (ตั้ง Data Validation แบบเลือกจากรายการไว้ในชีตอยู่แล้ว) → ใช้ dropdown ตามนั้น
+ * - นอกนั้น → ช่องกรอกข้อความปกติ
+ */
+function buildFieldInput(header) {
+  const isDateColumn = /วันที่|date/i.test(header.name);
+
+  if (header.options && header.options.length > 0) {
+    const select = document.createElement('select');
+    select.id = `field-${header.name}`;
+    select.dataset.header = header.name;
+
+    const blankOption = document.createElement('option');
+    blankOption.value = '';
+    blankOption.textContent = '-- เลือก --';
+    select.appendChild(blankOption);
+
+    header.options.forEach(optionValue => {
+      const option = document.createElement('option');
+      option.value = optionValue;
+      option.textContent = optionValue;
+      select.appendChild(option);
+    });
+
+    return select;
+  }
+
+  const inputEl = document.createElement('input');
+  inputEl.type = isDateColumn ? 'date' : 'text';
+  inputEl.id = `field-${header.name}`;
+  inputEl.dataset.header = header.name;
+  return inputEl;
+}
+
 addSubmitButton.addEventListener('click', async () => {
-  const [book, sheetName] = addSheetSelect.value.split(OPTION_SEP);
-  if (!sheetName) return;
+  if (!selectedSheet) return;
 
   const data = {};
-  addFields.querySelectorAll('input').forEach(inputEl => {
-    data[inputEl.dataset.header] = inputEl.value;
+  addFields.querySelectorAll('input, select').forEach(fieldEl => {
+    data[fieldEl.dataset.header] = fieldEl.value;
   });
 
   addSubmitButton.disabled = true;
   setAddStatus('กำลังบันทึก...', null);
 
   try {
-    const parts = [
-      'action=add',
-      `book=${encodeURIComponent(book)}`,
-      `sheet=${encodeURIComponent(sheetName)}`,
-      `data=${encodeURIComponent(JSON.stringify(data))}`,
-      `key=${encodeURIComponent(ACCESS_KEY)}`
-    ];
-    const result = await jsonpRequest(`${API_URL}?${parts.join('&')}`);
+    const url = apiUrl({
+      action: 'add',
+      book: currentBook,
+      sheet: selectedSheet,
+      data: JSON.stringify(data)
+    });
+    const result = await jsonpRequest(url);
     if (!result.ok) throw new Error(result.error || 'บันทึกไม่สำเร็จ');
 
     setAddStatus('บันทึกข้อมูลสำเร็จ', 'success');
-    addFields.querySelectorAll('input').forEach(inputEl => { inputEl.value = ''; });
-
-    // รีเฟรชผลค้นหาที่แสดงอยู่ ให้เห็นข้อมูลใหม่ทันที (เผื่อผู้ใช้สลับกลับไปดู)
-    if ((selectedBook === book && selectedSheet === sheetName) || !selectedSheet) {
-      runSearch(lastKeyword);
-    }
+    addFields.querySelectorAll('input, select').forEach(fieldEl => { fieldEl.value = ''; });
+    runSearch(lastKeyword);
   } catch (err) {
     setAddStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
   } finally {
@@ -323,4 +443,84 @@ addSubmitButton.addEventListener('click', async () => {
 function setAddStatus(message, type) {
   addStatus.textContent = message;
   addStatus.className = 'add-panel__status' + (type ? ` add-panel__status--${type}` : '');
+}
+
+/* ===== แถบจัดการคอลัมน์ (ลบคอลัมน์) ===== */
+
+manageToggle.addEventListener('click', () => {
+  if (!selectedSheet) return;
+  const isOpen = !managePanel.hidden;
+  managePanel.hidden = isOpen;
+  addPanel.hidden = true;
+  addToggle.setAttribute('aria-pressed', 'false');
+  addToggle.textContent = '+ เพิ่มข้อมูล';
+  manageToggle.setAttribute('aria-pressed', String(!isOpen));
+  manageToggle.textContent = isOpen ? 'จัดการคอลัมน์' : 'ปิดหน้าจัดการ';
+
+  if (!isOpen) loadManageColumns();
+});
+
+async function loadManageColumns() {
+  manageChips.innerHTML = '';
+  setManageStatus('กำลังโหลดคอลัมน์...', null);
+  try {
+    const url = apiUrl({ action: 'headers', book: currentBook, sheet: selectedSheet });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'โหลดคอลัมน์ไม่สำเร็จ');
+
+    renderManageChips(result.headers);
+    setManageStatus('', null);
+  } catch (err) {
+    setManageStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+function renderManageChips(headers) {
+  manageChips.innerHTML = '';
+  if (headers.length === 0) {
+    manageChips.innerHTML = '<p class="manage-panel__status">ไม่มีคอลัมน์ในแท็บนี้</p>';
+    return;
+  }
+  headers.forEach(header => {
+    const name = header.name;
+    const chip = document.createElement('span');
+    chip.className = 'manage-chip';
+
+    const label = document.createElement('span');
+    label.textContent = name;
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'manage-chip__delete';
+    delBtn.textContent = '×';
+    delBtn.title = `ลบคอลัมน์ "${name}"`;
+    delBtn.addEventListener('click', () => deleteColumn(name, chip, delBtn));
+
+    chip.append(label, delBtn);
+    manageChips.appendChild(chip);
+  });
+}
+
+async function deleteColumn(header, chipEl, buttonEl) {
+  const confirmed = confirm(`ยืนยันลบคอลัมน์ "${header}" ออกจากแท็บ "${selectedSheet}" ทั้งคอลัมน์?\n\nข้อมูลทุกแถวในคอลัมน์นี้จะหายไปด้วย และย้อนกลับไม่ได้`);
+  if (!confirmed) return;
+
+  buttonEl.disabled = true;
+  try {
+    const url = apiUrl({ action: 'deleteColumn', book: currentBook, sheet: selectedSheet, column: header });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'ลบคอลัมน์ไม่สำเร็จ');
+
+    chipEl.remove();
+    setManageStatus(`ลบคอลัมน์ "${header}" สำเร็จ`, 'success');
+    runSearch(lastKeyword); // รีเฟรชผลลัพธ์ให้เห็นว่าคอลัมน์หายไปแล้ว
+  } catch (err) {
+    setManageStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    buttonEl.disabled = false;
+  }
+}
+
+function setManageStatus(message, type) {
+  manageStatus.textContent = message;
+  manageStatus.className = 'manage-panel__status' + (type ? ` manage-panel__status--${type}` : '');
 }
