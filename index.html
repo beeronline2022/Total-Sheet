@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ค้นหาข้อมูล</title>
+<title>ระบบค้นหาข้อมูล</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -13,7 +13,20 @@
   <main class="page">
     <header class="hero">
       <p class="hero__eyebrow">ระบบค้นหาข้อมูล</p>
-      <h1 class="hero__title">หาสิ่งที่ต้องการ<br>จากฐานข้อมูลได้ในไม่กี่วินาที</h1>
+      <h1 class="hero__title" id="heroTitle">เลือกไฟล์ที่ต้องการ<br>เพื่อเริ่มค้นหา</h1>
+    </header>
+
+    <!-- ขั้นที่ 1: เลือกไฟล์ -->
+    <section class="books" id="booksSection">
+      <div class="books__grid" id="booksGrid"></div>
+      <p class="books__hint" id="booksHint"></p>
+    </section>
+
+    <!-- ขั้นที่ 2-3: เลือกแท็บ + ดูข้อมูล/จัดการ -->
+    <section class="workspace" id="workspace" hidden>
+      <button type="button" class="back-link" id="backButton">← กลับไปเลือกไฟล์</button>
+
+      <div class="tabs" id="tabsBar"></div>
 
       <form class="search" id="searchForm" autocomplete="off">
         <input
@@ -25,27 +38,29 @@
         >
         <button type="submit" class="search__button" id="searchButton">ค้นหา</button>
         <button type="button" class="mode-toggle" id="addToggle">+ เพิ่มข้อมูล</button>
+        <button type="button" class="mode-toggle mode-toggle--danger" id="manageToggle" hidden>จัดการคอลัมน์</button>
       </form>
-    </header>
 
-    <div class="tabs" id="tabsBar" hidden></div>
+      <section class="add-panel" id="addPanel" hidden>
+        <p class="add-panel__label">กำลังเพิ่มข้อมูลลงแท็บ: <b id="addPanelSheetName"></b></p>
+        <div class="add-panel__fields" id="addFields"></div>
+        <div class="add-panel__actions">
+          <button type="button" class="search__button" id="addSubmitButton">บันทึกข้อมูล</button>
+          <p class="add-panel__status" id="addStatus"></p>
+        </div>
+      </section>
 
-    <section class="add-panel" id="addPanel" hidden>
-      <p class="add-panel__label">เลือกแท็บที่จะเพิ่มข้อมูล</p>
-      <select class="add-panel__select" id="addSheetSelect">
-        <option value="">-- เลือกแท็บ --</option>
-      </select>
-      <div class="add-panel__fields" id="addFields"></div>
-      <div class="add-panel__actions">
-        <button type="button" class="search__button" id="addSubmitButton" disabled>บันทึกข้อมูล</button>
-        <p class="add-panel__status" id="addStatus"></p>
-      </div>
-    </section>
+      <section class="manage-panel" id="managePanel" hidden>
+        <p class="manage-panel__label">คอลัมน์ในแท็บนี้ — กด × เพื่อลบทั้งคอลัมน์ออกจากชีตจริง (ลบแล้วกู้คืนไม่ได้)</p>
+        <div class="manage-panel__chips" id="manageChips"></div>
+        <p class="manage-panel__status" id="manageStatus"></p>
+      </section>
 
-    <section class="results" id="resultsSection" aria-live="polite">
-      <p class="results__hint" id="resultsHint">พิมพ์คำค้นหาแล้วกด Enter เพื่อเริ่มค้นหา</p>
-      <p class="results__count" id="resultsCount" hidden></p>
-      <div class="results__grid" id="resultsGrid"></div>
+      <section class="results" id="resultsSection" aria-live="polite">
+        <p class="results__hint" id="resultsHint">เลือกแท็บด้านบน หรือพิมพ์คำค้นหาแล้วกด Enter</p>
+        <p class="results__count" id="resultsCount" hidden></p>
+        <div class="results__grid" id="resultsGrid"></div>
+      </section>
     </section>
   </main>
 
