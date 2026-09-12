@@ -2,6 +2,12 @@ const heroTitle = document.getElementById('heroTitle');
 const booksSection = document.getElementById('booksSection');
 const booksGrid = document.getElementById('booksGrid');
 const booksHint = document.getElementById('booksHint');
+const addBookToggle = document.getElementById('addBookToggle');
+const addBookPanel = document.getElementById('addBookPanel');
+const addBookName = document.getElementById('addBookName');
+const addBookUrl = document.getElementById('addBookUrl');
+const addBookSubmit = document.getElementById('addBookSubmit');
+const addBookStatus = document.getElementById('addBookStatus');
 const workspace = document.getElementById('workspace');
 const backButton = document.getElementById('backButton');
 const tabsBar = document.getElementById('tabsBar');
@@ -102,13 +108,40 @@ async function loadBooks() {
 function renderBooks(books) {
   booksGrid.innerHTML = '';
   books.forEach(book => {
-    const card = document.createElement('button');
-    card.type = 'button';
+    const card = document.createElement('div');
     card.className = 'book-card';
-    card.innerHTML = `<span class="book-card__name">${escapeHtml(book)}</span><span class="book-card__arrow">→</span>`;
-    card.addEventListener('click', () => openBook(book));
+
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'book-card__main';
+    main.innerHTML = `<span class="book-card__name">${escapeHtml(book)}</span><span class="book-card__arrow">→</span>`;
+    main.addEventListener('click', () => openBook(book));
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'book-card__remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = `เอาไฟล์ "${book}" ออกจากระบบ`;
+    removeBtn.addEventListener('click', () => removeBook(book, card));
+
+    card.append(main, removeBtn);
     booksGrid.appendChild(card);
   });
+}
+
+async function removeBook(book, cardEl) {
+  const confirmed = confirm(`เอาไฟล์ "${book}" ออกจากระบบนี้?\n\n(ไฟล์ Google Sheet จริงจะไม่ถูกลบ แค่เอาออกจากรายการที่เว็บนี้เรียกใช้)`);
+  if (!confirmed) return;
+
+  try {
+    const url = apiUrl({ action: 'removeBook', name: book });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'เอาไฟล์ออกไม่สำเร็จ');
+
+    cardEl.remove();
+  } catch (err) {
+    alert('เกิดข้อผิดพลาด: ' + err.message);
+  }
 }
 
 async function openBook(book) {
@@ -153,6 +186,52 @@ backButton.addEventListener('click', () => {
   booksSection.hidden = false;
   heroTitle.innerHTML = 'เลือกไฟล์ที่ต้องการ<br>เพื่อเริ่มค้นหา';
 });
+
+/* ===== เพิ่มไฟล์ใหม่จากหน้าเว็บ (ไม่ต้องแก้โค้ด/Deploy ใหม่) ===== */
+
+addBookToggle.addEventListener('click', () => {
+  const isOpen = !addBookPanel.hidden;
+  addBookPanel.hidden = isOpen;
+  addBookToggle.setAttribute('aria-pressed', String(!isOpen));
+  addBookToggle.textContent = isOpen ? '+ เพิ่มไฟล์ใหม่' : '× ปิดฟอร์ม';
+  if (!isOpen) {
+    addBookName.value = '';
+    addBookUrl.value = '';
+    setAddBookStatus('', null);
+  }
+});
+
+addBookSubmit.addEventListener('click', async () => {
+  const name = addBookName.value.trim();
+  const sheetUrl = addBookUrl.value.trim();
+  if (!name || !sheetUrl) {
+    setAddBookStatus('กรุณากรอกทั้งชื่อไฟล์และลิงก์ Google Sheet', 'error');
+    return;
+  }
+
+  addBookSubmit.disabled = true;
+  setAddBookStatus('กำลังตรวจสอบและเพิ่มไฟล์...', null);
+
+  try {
+    const url = apiUrl({ action: 'addBook', name, sheetUrl });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'เพิ่มไฟล์ไม่สำเร็จ');
+
+    setAddBookStatus(result.message, 'success');
+    addBookName.value = '';
+    addBookUrl.value = '';
+    renderBooks(result.books);
+  } catch (err) {
+    setAddBookStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  } finally {
+    addBookSubmit.disabled = false;
+  }
+});
+
+function setAddBookStatus(message, type) {
+  addBookStatus.textContent = message;
+  addBookStatus.className = 'add-panel__status' + (type ? ` add-panel__status--${type}` : '');
+}
 
 /* ===== ขั้นที่ 2: เลือกแท็บ ===== */
 

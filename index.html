@@ -20,6 +20,23 @@
     <section class="books" id="booksSection">
       <div class="books__grid" id="booksGrid"></div>
       <p class="books__hint" id="booksHint"></p>
+
+      <button type="button" class="mode-toggle" id="addBookToggle">+ เพิ่มไฟล์ใหม่</button>
+
+      <section class="add-book-panel" id="addBookPanel" hidden>
+        <div class="add-field">
+          <label for="addBookName">ชื่อที่อยากให้แสดงบนหน้าเว็บ</label>
+          <input type="text" id="addBookName" placeholder="เช่น ปัญหาเติมเงินเกม A">
+        </div>
+        <div class="add-field">
+          <label for="addBookUrl">ลิงก์ Google Sheet (หรือวาง ID ตรงๆ ก็ได้)</label>
+          <input type="text" id="addBookUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+        </div>
+        <div class="add-panel__actions">
+          <button type="button" class="search__button" id="addBookSubmit">เพิ่มไฟล์</button>
+          <p class="add-panel__status" id="addBookStatus"></p>
+        </div>
+      </section>
     </section>
 
     <!-- ขั้นที่ 2-3: เลือกแท็บ + ดูข้อมูล/จัดการ -->
