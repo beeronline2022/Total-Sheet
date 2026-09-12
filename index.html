@@ -39,7 +39,14 @@
         <button type="submit" class="search__button" id="searchButton">ค้นหา</button>
         <button type="button" class="mode-toggle" id="addToggle">+ เพิ่มข้อมูล</button>
         <button type="button" class="mode-toggle mode-toggle--danger" id="manageToggle" hidden>จัดการคอลัมน์</button>
+        <button type="button" class="mode-toggle mode-toggle--trash" id="trashToggle">🗑 ถังขยะ</button>
       </form>
+
+      <section class="trash-panel" id="trashPanel" hidden>
+        <p class="trash-panel__label">รายการที่ลบล่าสุดในไฟล์นี้ — กด "กู้คืน" เพื่อนำข้อมูลกลับเข้าชีตจริง (จะถูกเพิ่มไว้ท้ายชีตปลายทาง)</p>
+        <div class="trash-panel__list" id="trashList"></div>
+        <p class="trash-panel__status" id="trashStatus"></p>
+      </section>
 
       <section class="add-panel" id="addPanel" hidden>
         <p class="add-panel__label">กำลังเพิ่มข้อมูลลงแท็บ: <b id="addPanelSheetName"></b></p>

@@ -25,6 +25,11 @@ const managePanel = document.getElementById('managePanel');
 const manageChips = document.getElementById('manageChips');
 const manageStatus = document.getElementById('manageStatus');
 
+const trashToggle = document.getElementById('trashToggle');
+const trashPanel = document.getElementById('trashPanel');
+const trashList = document.getElementById('trashList');
+const trashStatus = document.getElementById('trashStatus');
+
 const resultsSection = document.getElementById('resultsSection');
 
 let currentBook = '';
@@ -118,11 +123,14 @@ async function openBook(book) {
 
   addPanel.hidden = true;
   managePanel.hidden = true;
+  trashPanel.hidden = true;
   addToggle.setAttribute('aria-pressed', 'false');
   addToggle.textContent = '+ เพิ่มข้อมูล';
   manageToggle.hidden = true;
   manageToggle.setAttribute('aria-pressed', 'false');
   manageToggle.textContent = 'จัดการคอลัมน์';
+  trashToggle.setAttribute('aria-pressed', 'false');
+  trashToggle.textContent = '🗑 ถังขยะ';
 
   showHint('กำลังโหลดรายชื่อแท็บ...', false);
   tabsBar.innerHTML = '';
@@ -323,8 +331,11 @@ addToggle.addEventListener('click', () => {
   const isOpen = !addPanel.hidden;
   addPanel.hidden = isOpen;
   managePanel.hidden = true;
+  trashPanel.hidden = true;
   manageToggle.setAttribute('aria-pressed', 'false');
   manageToggle.textContent = 'จัดการคอลัมน์';
+  trashToggle.setAttribute('aria-pressed', 'false');
+  trashToggle.textContent = '🗑 ถังขยะ';
   addToggle.setAttribute('aria-pressed', String(!isOpen));
   addToggle.textContent = isOpen ? '+ เพิ่มข้อมูล' : '× ปิดฟอร์ม';
 
@@ -452,8 +463,11 @@ manageToggle.addEventListener('click', () => {
   const isOpen = !managePanel.hidden;
   managePanel.hidden = isOpen;
   addPanel.hidden = true;
+  trashPanel.hidden = true;
   addToggle.setAttribute('aria-pressed', 'false');
   addToggle.textContent = '+ เพิ่มข้อมูล';
+  trashToggle.setAttribute('aria-pressed', 'false');
+  trashToggle.textContent = '🗑 ถังขยะ';
   manageToggle.setAttribute('aria-pressed', String(!isOpen));
   manageToggle.textContent = isOpen ? 'จัดการคอลัมน์' : 'ปิดหน้าจัดการ';
 
@@ -523,4 +537,103 @@ async function deleteColumn(header, chipEl, buttonEl) {
 function setManageStatus(message, type) {
   manageStatus.textContent = message;
   manageStatus.className = 'manage-panel__status' + (type ? ` manage-panel__status--${type}` : '');
+}
+
+/* ===== แถบถังขยะ / กู้คืนข้อมูล ===== */
+
+trashToggle.addEventListener('click', () => {
+  const isOpen = !trashPanel.hidden;
+  trashPanel.hidden = isOpen;
+  addPanel.hidden = true;
+  managePanel.hidden = true;
+  addToggle.setAttribute('aria-pressed', 'false');
+  addToggle.textContent = '+ เพิ่มข้อมูล';
+  manageToggle.setAttribute('aria-pressed', 'false');
+  manageToggle.textContent = 'จัดการคอลัมน์';
+  trashToggle.setAttribute('aria-pressed', String(!isOpen));
+  trashToggle.textContent = isOpen ? '🗑 ถังขยะ' : '× ปิดถังขยะ';
+
+  if (!isOpen) loadTrash();
+});
+
+async function loadTrash() {
+  trashList.innerHTML = '';
+  setTrashStatus('กำลังโหลดรายการที่ลบล่าสุด...', null);
+  try {
+    const url = apiUrl({ action: 'trash', book: currentBook });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'โหลดถังขยะไม่สำเร็จ');
+
+    renderTrashItems(result.items);
+    setTrashStatus(result.items.length === 0 ? 'ยังไม่มีรายการที่ถูกลบในไฟล์นี้' : '', null);
+  } catch (err) {
+    setTrashStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+function renderTrashItems(items) {
+  trashList.innerHTML = '';
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'trash-item';
+
+    const info = document.createElement('div');
+    info.className = 'trash-item__info';
+
+    const meta = document.createElement('div');
+    meta.className = 'trash-item__meta';
+    const typeLabel = item.type === 'row' ? 'ลบแถว' : 'ลบคอลัมน์';
+    meta.textContent = `${typeLabel} · ${item.sheetName} · ${formatDeletedAt(item.deletedAt)}`;
+
+    const preview = document.createElement('div');
+    preview.className = 'trash-item__preview';
+    preview.textContent = item.preview;
+
+    info.append(meta, preview);
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button';
+    restoreBtn.className = 'trash-item__restore';
+    restoreBtn.textContent = 'กู้คืน';
+    restoreBtn.addEventListener('click', () => restoreTrashItem(item, row, restoreBtn));
+
+    row.append(info, restoreBtn);
+    trashList.appendChild(row);
+  });
+}
+
+function formatDeletedAt(isoString) {
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+  } catch (e) {
+    return isoString;
+  }
+}
+
+async function restoreTrashItem(item, rowEl, buttonEl) {
+  buttonEl.disabled = true;
+  buttonEl.textContent = 'กำลังกู้คืน...';
+  try {
+    const url = apiUrl({ action: 'restore', book: currentBook, id: item.id });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'กู้คืนไม่สำเร็จ');
+
+    rowEl.remove();
+    setTrashStatus(result.message, 'success');
+
+    // ถ้ากำลังดูแท็บเดียวกับที่เพิ่งกู้คืนอยู่ ให้รีเฟรชผลลัพธ์ให้เห็นข้อมูลที่กลับมาทันที
+    if (selectedSheet === item.sheetName || !selectedSheet) {
+      runSearch(lastKeyword);
+    }
+  } catch (err) {
+    setTrashStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    buttonEl.disabled = false;
+    buttonEl.textContent = 'กู้คืน';
+  }
+}
+
+function setTrashStatus(message, type) {
+  trashStatus.textContent = message;
+  trashStatus.className = 'trash-panel__status' + (type ? ` trash-panel__status--${type}` : '');
 }
