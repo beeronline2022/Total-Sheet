@@ -2,12 +2,15 @@ const heroTitle = document.getElementById('heroTitle');
 const booksSection = document.getElementById('booksSection');
 const booksGrid = document.getElementById('booksGrid');
 const booksHint = document.getElementById('booksHint');
-const addBookToggle = document.getElementById('addBookToggle');
 const addBookPanel = document.getElementById('addBookPanel');
 const addBookName = document.getElementById('addBookName');
 const addBookUrl = document.getElementById('addBookUrl');
 const addBookSubmit = document.getElementById('addBookSubmit');
 const addBookStatus = document.getElementById('addBookStatus');
+const bookTrashToggle = document.getElementById('bookTrashToggle');
+const bookTrashPanel = document.getElementById('bookTrashPanel');
+const bookTrashList = document.getElementById('bookTrashList');
+const bookTrashStatus = document.getElementById('bookTrashStatus');
 const workspace = document.getElementById('workspace');
 const backButton = document.getElementById('backButton');
 const tabsBar = document.getElementById('tabsBar');
@@ -184,22 +187,10 @@ backButton.addEventListener('click', () => {
   selectedSheet = '';
   workspace.hidden = true;
   booksSection.hidden = false;
-  heroTitle.innerHTML = 'เลือกไฟล์ที่ต้องการ<br>เพื่อเริ่มค้นหา';
+  heroTitle.innerHTML = '';
 });
 
 /* ===== เพิ่มไฟล์ใหม่จากหน้าเว็บ (ไม่ต้องแก้โค้ด/Deploy ใหม่) ===== */
-
-addBookToggle.addEventListener('click', () => {
-  const isOpen = !addBookPanel.hidden;
-  addBookPanel.hidden = isOpen;
-  addBookToggle.setAttribute('aria-pressed', String(!isOpen));
-  addBookToggle.textContent = isOpen ? '+ เพิ่มไฟล์ใหม่' : '× ปิดฟอร์ม';
-  if (!isOpen) {
-    addBookName.value = '';
-    addBookUrl.value = '';
-    setAddBookStatus('', null);
-  }
-});
 
 addBookSubmit.addEventListener('click', async () => {
   const name = addBookName.value.trim();
@@ -231,6 +222,85 @@ addBookSubmit.addEventListener('click', async () => {
 function setAddBookStatus(message, type) {
   addBookStatus.textContent = message;
   addBookStatus.className = 'add-panel__status' + (type ? ` add-panel__status--${type}` : '');
+}
+
+/* ===== ถังขยะไฟล์ (ไฟล์ที่เอาออกจากระบบ กู้คืนกลับมาได้) ===== */
+
+bookTrashToggle.addEventListener('click', () => {
+  const isOpen = !bookTrashPanel.hidden;
+  bookTrashPanel.hidden = isOpen;
+  bookTrashToggle.setAttribute('aria-pressed', String(!isOpen));
+  bookTrashToggle.textContent = isOpen ? '🗑 ถังขยะไฟล์' : '× ปิดถังขยะไฟล์';
+
+  if (!isOpen) loadBookTrash();
+});
+
+async function loadBookTrash() {
+  bookTrashList.innerHTML = '';
+  setBookTrashStatus('กำลังโหลดรายการที่เอาออกล่าสุด...', null);
+  try {
+    const url = apiUrl({ action: 'bookTrash' });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'โหลดถังขยะไฟล์ไม่สำเร็จ');
+
+    renderBookTrashItems(result.items);
+    setBookTrashStatus(result.items.length === 0 ? 'ยังไม่มีไฟล์ที่ถูกเอาออกจากระบบ' : '', null);
+  } catch (err) {
+    setBookTrashStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+  }
+}
+
+function renderBookTrashItems(items) {
+  bookTrashList.innerHTML = '';
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'trash-item';
+
+    const info = document.createElement('div');
+    info.className = 'trash-item__info';
+
+    const meta = document.createElement('div');
+    meta.className = 'trash-item__meta';
+    meta.textContent = `เอาไฟล์ออก · ${formatDeletedAt(item.removedAt)}`;
+
+    const preview = document.createElement('div');
+    preview.className = 'trash-item__preview';
+    preview.textContent = item.name;
+
+    info.append(meta, preview);
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button';
+    restoreBtn.className = 'trash-item__restore';
+    restoreBtn.textContent = 'กู้คืน';
+    restoreBtn.addEventListener('click', () => restoreBookItem(item, row, restoreBtn));
+
+    row.append(info, restoreBtn);
+    bookTrashList.appendChild(row);
+  });
+}
+
+async function restoreBookItem(item, rowEl, buttonEl) {
+  buttonEl.disabled = true;
+  buttonEl.textContent = 'กำลังกู้คืน...';
+  try {
+    const url = apiUrl({ action: 'restoreBook', id: item.id });
+    const result = await jsonpRequest(url);
+    if (!result.ok) throw new Error(result.error || 'กู้คืนไม่สำเร็จ');
+
+    rowEl.remove();
+    setBookTrashStatus(result.message, 'success');
+    renderBooks(result.books);
+  } catch (err) {
+    setBookTrashStatus('เกิดข้อผิดพลาด: ' + err.message, 'error');
+    buttonEl.disabled = false;
+    buttonEl.textContent = 'กู้คืน';
+  }
+}
+
+function setBookTrashStatus(message, type) {
+  bookTrashStatus.textContent = message;
+  bookTrashStatus.className = 'trash-panel__status' + (type ? ` trash-panel__status--${type}` : '');
 }
 
 /* ===== ขั้นที่ 2: เลือกแท็บ ===== */

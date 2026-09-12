@@ -13,7 +13,7 @@
   <main class="page">
     <header class="hero">
       <p class="hero__eyebrow">ระบบค้นหาข้อมูล</p>
-      <h1 class="hero__title" id="heroTitle">เลือกไฟล์ที่ต้องการ<br>เพื่อเริ่มค้นหา</h1>
+      <h1 class="hero__title" id="heroTitle"></h1>
     </header>
 
     <!-- ขั้นที่ 1: เลือกไฟล์ -->
@@ -21,9 +21,8 @@
       <div class="books__grid" id="booksGrid"></div>
       <p class="books__hint" id="booksHint"></p>
 
-      <button type="button" class="mode-toggle" id="addBookToggle">+ เพิ่มไฟล์ใหม่</button>
-
-      <section class="add-book-panel" id="addBookPanel" hidden>
+      <p class="section-label">เพิ่มชีทใหม่</p>
+      <section class="add-book-panel" id="addBookPanel">
         <div class="add-field">
           <label for="addBookName">ชื่อที่อยากให้แสดงบนหน้าเว็บ</label>
           <input type="text" id="addBookName" placeholder="เช่น ปัญหาเติมเงินเกม A">
@@ -36,6 +35,13 @@
           <button type="button" class="search__button" id="addBookSubmit">เพิ่มไฟล์</button>
           <p class="add-panel__status" id="addBookStatus"></p>
         </div>
+      </section>
+
+      <button type="button" class="mode-toggle mode-toggle--trash" id="bookTrashToggle">🗑 ถังขยะไฟล์</button>
+      <section class="trash-panel" id="bookTrashPanel" hidden>
+        <p class="trash-panel__label">ไฟล์ที่เอาออกจากระบบล่าสุด — กด "กู้คืน" เพื่อนำกลับมาแสดงในรายการไฟล์อีกครั้ง</p>
+        <div class="trash-panel__list" id="bookTrashList"></div>
+        <p class="trash-panel__status" id="bookTrashStatus"></p>
       </section>
     </section>
 

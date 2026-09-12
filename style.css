@@ -123,6 +123,13 @@ body {
   margin: 16px 0 0;
 }
 
+.section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 28px 0 10px;
+}
+
 .add-book-panel {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
